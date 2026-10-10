@@ -123,7 +123,7 @@ class Refresher:
         if self._settings.has_overcast_credentials() and self.is_stale():
             try:
                 self.start()
-            except sqlite3.Error:
+            except (sqlite3.Error, RuntimeError):
                 logger.exception("Could not start a refresh; serving current data")
         self._history_ready.wait(timeout=wait_seconds)
 
@@ -136,12 +136,23 @@ class Refresher:
             log_id = record_refresh_start(self._settings.db_path, started_at=utc_now())
             self._history_ready.clear()
             self._finished.clear()
-            threading.Thread(
+            thread = threading.Thread(
                 target=self._run,
                 kwargs={"log_id": log_id},
                 name="overcast-refresh",
                 daemon=True,
-            ).start()
+            )
+            try:
+                thread.start()
+            except RuntimeError as exc:
+                # No thread will ever set the events, so resolve the log row and
+                # release waiters here, or `running` would stay true forever.
+                self._finish(
+                    log_id=log_id,
+                    outcome="failed",
+                    error=f"Could not start the refresh thread: {exc}",
+                )
+                raise
             return True
 
     def wait_until_finished(self, timeout: float) -> bool:
