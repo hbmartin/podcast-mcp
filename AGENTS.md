@@ -31,4 +31,5 @@
 - overcast-to-sqlite creates `episodes_extended`/`feeds_extended` columns from RSS tags on the fly (`alter=True`), so a column like `"itunes:duration"` may not exist yet. `database.prepare_database` adds every optional column we query so all SQL stays static.
 - Refreshes run the overcast-to-sqlite CLI in a subprocess: its `print`s would corrupt the MCP stdio channel, and its feed downloads have no timeout.
 - FastMCP 4.x (MCP SDK v2): tool annotations can be passed as a camelCase dict, `Google-style Args:` docstrings become parameter descriptions, and the Host/Origin guard is off by default (needed behind Tailscale Funnel).
-- `.github/workflows/lint-test.yml` was copied from another project (legolization/LDraw steps, Python 3.12) and needs adapting before CI can pass.
+- The docs workflow (`.github/workflows/docs.yml`) skips building and deploying until a `zensical.toml` exists; adding the Zensical site also needs `docs/` and `tests/test_docs.py`.
+- Refresher waiters block on threading Events; every path that clears them must set them again even when a SQLite write fails (see `Refresher._finish`).
