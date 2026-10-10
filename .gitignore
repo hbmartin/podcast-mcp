@@ -8,3 +8,14 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Test coverage
+.coverage
+htmlcov/
+
+# Personal Overcast data and credentials
+*.db
+*.db-shm
+*.db-wal
+auth.json
+archive/

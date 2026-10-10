@@ -11,6 +11,7 @@ requires-python = ">=3.13"
 dependencies = [
     "fastmcp>=4.1.0",
     "overcast-to-sqlite>=0.9.0",
+    "requests>=2.34.2",
 ]
 
 [project.urls]
@@ -20,7 +21,7 @@ Documentation = "https://hbmartin.github.io/podcast-mcp/"
 Changelog = "https://github.com/hbmartin/podcast-mcp/releases"
 
 [project.scripts]
-podcast-mcp = "podcast_mcp:main"
+podcast-mcp = "podcast_mcp.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.0,<0.14.0"]
@@ -66,10 +67,11 @@ select = ["ALL"]
 ignore = ["COM812", "CPY001", "D105", "D107", "D203", "D212", "D213", "EM101", "PLR2004", "T201"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ARG001", "ARG005", "D103", "D104", "DTZ003", "ERA001", "F403", "F405", "FBT002", "G004", "N802", "PLC0415", "PLR2004", "PLW1510", "PT011", "PT013", "PTH110", "PTH118", "PTH119", "PTH122", "PTH123", "PTH207", "S101", "S102", "S311", "S603", "S607", "SIM115"]
+"tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ARG001", "ARG002", "ARG005", "D100", "D101", "D102", "D103", "D104", "DTZ003", "ERA001", "F403", "F405", "FBT002", "G004", "N802", "PLC0415", "PLR2004", "PLW1510", "PT011", "PT013", "PTH110", "PTH118", "PTH119", "PTH122", "PTH123", "PTH207", "S101", "S102", "S311", "S603", "S607", "SIM115"]
 "scripts/**/*.py" = ["INP001", "T201"]
 
 [tool.pyrefly]
+search-path = ["src", "."]
 project-includes = [
     "src/**/*.py",
     "scripts/**/*.py",

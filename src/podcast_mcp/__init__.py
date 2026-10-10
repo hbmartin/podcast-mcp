@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from podcast-mcp!")
+"""MCP server exposing Overcast podcast listening history."""
