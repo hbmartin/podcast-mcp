@@ -1153,6 +1153,7 @@ dependencies = [
     { name = "fastmcp" },
     { name = "overcast-to-sqlite", version = "0.9.0", source = { registry = "https://pkgs.safetycli.com/repository/independent-3c890/pypi/simple/" }, marker = "python_full_version < '3.14'" },
     { name = "overcast-to-sqlite", version = "1.0.0", source = { registry = "https://pkgs.safetycli.com/repository/independent-3c890/pypi/simple/" }, marker = "python_full_version >= '3.14'" },
+    { name = "requests" },
 ]
 
 [package.dev-dependencies]
@@ -1172,6 +1173,7 @@ docs = [
 requires-dist = [
     { name = "fastmcp", specifier = ">=4.1.0" },
     { name = "overcast-to-sqlite", specifier = ">=0.9.0" },
+    { name = "requests", specifier = ">=2.34.2" },
 ]
 
 [package.metadata.requires-dev]
