@@ -1,5 +1,6 @@
 import pytest
 
+from podcast_mcp.database import connect
 from podcast_mcp.library import EmptySearchQueryError, HistoryStatus, Library, Page
 from tests.sample_library import (
     EP_AGENTS,
@@ -138,6 +139,26 @@ def test_podcasts_subscribed_only_and_all(library):
     assert [podcast.title for podcast in every] == ["Hard Fork", "Old Show"]
     named = library.podcasts(subscribed_only=False, name_contains="old", page=Page(10))
     assert [podcast.podcast_id for podcast in named] == [2]
+
+
+def test_podcasts_compare_last_listened_across_utc_offsets(library):
+    # 10:00-04:00 is 14:00 UTC, later than 13:00+00:00 though it sorts first as text.
+    with connect(library.db_path, writable=True) as conn:
+        conn.execute(
+            "UPDATE episodes SET userUpdatedDate = ? WHERE overcastId = ?",
+            ("2026-09-07T10:00:00-04:00", 104),
+        )
+        conn.execute(
+            "UPDATE episodes SET userUpdatedDate = ? WHERE overcastId = ?",
+            ("2026-09-07T13:00:00+00:00", 201),
+        )
+    podcasts = library.podcasts(
+        subscribed_only=False, name_contains=None, page=Page(10)
+    )
+    assert [(podcast.title, podcast.last_listened) for podcast in podcasts] == [
+        ("Hard Fork", "2026-09-07T14:00:00Z"),
+        ("Old Show", "2026-09-07T13:00:00Z"),
+    ]
 
 
 def test_podcast_detail(library):

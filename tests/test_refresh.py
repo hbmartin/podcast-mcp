@@ -1,13 +1,15 @@
+import sqlite3
 import subprocess
 import threading
+import time
 from pathlib import Path
 
 import pytest
 
 from podcast_mcp import refresh
 from podcast_mcp.config import DEFAULT_DATA_DIR, Settings
-from podcast_mcp.database import prepare_database
-from podcast_mcp.refresh import Refresher, RefreshStepError, RefreshSteps
+from podcast_mcp.database import prepare_database, record_refresh_start
+from podcast_mcp.refresh import Refresher, RefreshStepError, RefreshSteps, utc_now
 
 WAIT = 5.0
 
@@ -128,6 +130,47 @@ def test_callers_wait_only_for_history(credentialed):
     steps.release_details.set()
     assert refresher.wait_until_finished(timeout=WAIT)
     assert steps.calls == ["history", "details"]
+
+
+def _database_locked(*args, **kwargs) -> None:
+    msg = "database is locked"
+    raise sqlite3.OperationalError(msg)
+
+
+def test_failed_finish_log_write_releases_waiters(credentialed, monkeypatch):
+    # A locked database breaks the refresh and its log write together.
+    monkeypatch.setattr(refresh, "record_refresh_finish", _database_locked)
+    steps = RecordingSteps()
+    steps.history_error = RuntimeError("database is locked")
+    refresher = Refresher(credentialed, steps=steps.as_steps())
+    started = time.monotonic()
+    refresher.ensure_fresh(wait_seconds=WAIT)
+    assert refresher.wait_until_finished(timeout=WAIT)
+    refresher.ensure_fresh(wait_seconds=WAIT)
+    assert time.monotonic() - started < WAIT
+    status = refresher.status()
+    assert status.running is False
+    assert status.last_outcome == "interrupted"
+
+
+def test_failed_start_log_write_serves_current_data(credentialed, monkeypatch):
+    monkeypatch.setattr(refresh, "record_refresh_start", _database_locked)
+    steps = RecordingSteps()
+    refresher = Refresher(credentialed, steps=steps.as_steps())
+    started = time.monotonic()
+    refresher.ensure_fresh(wait_seconds=WAIT)
+    assert time.monotonic() - started < WAIT
+    assert steps.calls == []
+    assert refresher.running is False
+    with pytest.raises(sqlite3.OperationalError):
+        refresher.start()
+
+
+def test_refresh_left_running_by_a_previous_process_is_interrupted(credentialed):
+    record_refresh_start(credentialed.db_path, started_at=utc_now())
+    status = Refresher(credentialed).status()
+    assert status.running is False
+    assert status.last_outcome == "interrupted"
 
 
 def test_settings_from_env(monkeypatch, tmp_path):

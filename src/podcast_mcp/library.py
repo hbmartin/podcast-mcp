@@ -81,8 +81,13 @@ SELECT
     feeds.subscribed AS subscribed,
     COUNT(ep.overcastId) FILTER (WHERE (ep.played = 1 OR ep.progress > 300))
         AS episodes_listened,
-    MAX(ep.userUpdatedDate) FILTER (WHERE (ep.played = 1 OR ep.progress > 300))
-        AS last_listened
+    -- Overcast dates carry differing UTC offsets, so compare them as datetimes
+    -- and return UTC; a plain MAX() would compare the strings.
+    strftime(
+        '%Y-%m-%dT%H:%M:%SZ',
+        MAX(datetime(ep.userUpdatedDate))
+            FILTER (WHERE (ep.played = 1 OR ep.progress > 300))
+    ) AS last_listened
 FROM feeds
 LEFT JOIN feeds_extended AS fe ON fe.xmlUrl = feeds.xmlUrl
 LEFT JOIN episodes AS ep ON ep.feedId = feeds.overcastId
