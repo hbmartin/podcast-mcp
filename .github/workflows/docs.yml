@@ -37,33 +37,54 @@ jobs:
   build:
     name: Build site
     runs-on: ubuntu-latest
+    outputs:
+      has-docs: ${{ steps.config.outputs.has-docs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      # The site has not been written yet; build and deploy start running as
+      # soon as zensical.toml is committed.
+      - name: Check for a docs site
+        id: config
+        run: |
+          if [[ -f zensical.toml ]]; then
+            echo "has-docs=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-docs=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No zensical.toml yet; skipping the docs build"
+          fi
+
       - name: Install uv
+        if: steps.config.outputs.has-docs == 'true'
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
       - name: Build with Zensical
+        if: steps.config.outputs.has-docs == 'true'
         run: uv run --group docs zensical build
 
       # A page the navigation cannot reach, or a cross-link that no longer
       # resolves, both render fine and fail silently. This is the objection.
       - name: Check navigation and internal links
+        if: steps.config.outputs.has-docs == 'true'
         run: uv run pytest tests/test_docs.py -q
 
       - name: Upload Pages artifact
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: >-
+          steps.config.outputs.has-docs == 'true'
+          && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
   deploy:
     name: Deploy to GitHub Pages
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: >-
+      needs.build.outputs.has-docs == 'true'
+      && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:

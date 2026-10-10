@@ -1,6 +1,7 @@
 """Background refresh of the library from Overcast via overcast-to-sqlite."""
 
 import logging
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -96,7 +97,6 @@ class Refresher:
         self._settings = settings
         self._steps = steps or RefreshSteps()
         self._lock = threading.Lock()
-        self._thread: threading.Thread | None = None
         self._history_ready = threading.Event()
         self._finished = threading.Event()
         self._history_ready.set()
@@ -105,7 +105,7 @@ class Refresher:
     @property
     def running(self) -> bool:
         """Whether a refresh is in progress."""
-        return (thread := self._thread) is not None and thread.is_alive()
+        return not self._finished.is_set()
 
     def is_stale(self) -> bool:
         """Whether the last refresh started longer ago than the refresh interval."""
@@ -121,7 +121,10 @@ class Refresher:
         refresh still downloading feed details does not block callers.
         """
         if self._settings.has_overcast_credentials() and self.is_stale():
-            self.start()
+            try:
+                self.start()
+            except sqlite3.Error:
+                logger.exception("Could not start a refresh; serving current data")
         self._history_ready.wait(timeout=wait_seconds)
 
     def start(self) -> bool:
@@ -129,16 +132,16 @@ class Refresher:
         with self._lock:
             if self.running:
                 return False
+            # Log first: if the write fails, no waiter is left blocked.
+            log_id = record_refresh_start(self._settings.db_path, started_at=utc_now())
             self._history_ready.clear()
             self._finished.clear()
-            log_id = record_refresh_start(self._settings.db_path, started_at=utc_now())
-            self._thread = threading.Thread(
+            threading.Thread(
                 target=self._run,
                 kwargs={"log_id": log_id},
                 name="overcast-refresh",
                 daemon=True,
-            )
-            self._thread.start()
+            ).start()
             return True
 
     def wait_until_finished(self, timeout: float) -> bool:
@@ -147,13 +150,20 @@ class Refresher:
 
     def status(self) -> RefreshStatus:
         """Describe the latest refresh."""
-        record = latest_refresh(self._settings.db_path)
+        # The lock keeps a refresh from starting between the two reads.
+        with self._lock:
+            running = self.running
+            record = latest_refresh(self._settings.db_path)
+        outcome = record.outcome if record else None
+        if outcome == "running" and not running:
+            # The server stopped mid-refresh or could not record the result.
+            outcome = "interrupted"
         return RefreshStatus(
-            running=self.running,
+            running=running,
             has_overcast_credentials=self._settings.has_overcast_credentials(),
             last_started=record.started_at if record else None,
             last_finished=record.finished_at if record else None,
-            last_outcome=record.outcome if record else None,
+            last_outcome=outcome,
             last_error=record.error if record else None,
         )
 
@@ -169,6 +179,12 @@ class Refresher:
             logger.exception("Overcast refresh stopped with outcome %s", outcome)
             error = str(exc)
         finally:
+            self._finish(log_id=log_id, outcome=outcome, error=error)
+
+    def _finish(self, *, log_id: int, outcome: str, error: str | None) -> None:
+        # Waiters must be released even when the log write fails (e.g. the
+        # database is locked), or every tool call would stall until timeout.
+        try:
             record_refresh_finish(
                 self._settings.db_path,
                 log_id=log_id,
@@ -176,5 +192,8 @@ class Refresher:
                 error=error,
                 finished_at=utc_now(),
             )
+        except sqlite3.Error:
+            logger.exception("Could not record the end of refresh %d", log_id)
+        finally:
             self._history_ready.set()
             self._finished.set()
