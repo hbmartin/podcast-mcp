@@ -19,3 +19,4 @@ htmlcov/
 *.db-wal
 auth.json
 archive/
+reviews_triage/

@@ -9,6 +9,9 @@ Data comes from Overcast's OPML export via
 [overcast-to-sqlite](https://github.com/hbmartin/overcast-to-sqlite) and is kept in a
 local SQLite database.
 
+**New here? Start with [QUICKSTART.md](QUICKSTART.md)**, which also covers reusing an
+existing overcast-to-sqlite database.
+
 ## Tools
 
 | Tool | What it does |

@@ -166,6 +166,37 @@ def test_failed_start_log_write_serves_current_data(credentialed, monkeypatch):
         refresher.start()
 
 
+def _cannot_start_thread(self: threading.Thread) -> None:
+    msg = "can't start new thread"
+    raise RuntimeError(msg)
+
+
+def test_thread_start_failure_releases_waiters_and_allows_retry(
+    credentialed,
+    monkeypatch,
+):
+    steps = RecordingSteps()
+    refresher = Refresher(credentialed, steps=steps.as_steps())
+    with monkeypatch.context() as patch:
+        patch.setattr(threading.Thread, "start", _cannot_start_thread)
+        started = time.monotonic()
+        refresher.ensure_fresh(wait_seconds=WAIT)
+        assert time.monotonic() - started < WAIT
+        with pytest.raises(RuntimeError, match="can't start new thread"):
+            refresher.start()
+    status = refresher.status()
+    assert status.running is False
+    assert status.last_outcome == "failed"
+    assert (
+        status.last_error
+        == "Could not start the refresh thread: can't start new thread"
+    )
+    assert steps.calls == []
+    assert refresher.start() is True
+    assert refresher.wait_until_finished(timeout=WAIT)
+    assert steps.calls == ["history", "details"]
+
+
 def test_refresh_left_running_by_a_previous_process_is_interrupted(credentialed):
     record_refresh_start(credentialed.db_path, started_at=utc_now())
     status = Refresher(credentialed).status()
