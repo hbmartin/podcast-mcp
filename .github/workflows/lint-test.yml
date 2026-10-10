@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.13"]
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -48,17 +48,6 @@ jobs:
         PY
     - name: Install dependencies
       run: uv sync --all-groups
-    - name: Cache LDraw parts library
-      id: ldraw-cache
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: ~/.local/share/pyldraw3
-        key: pyldraw3-${{ runner.os }}
-    - name: Generate ldraw.library part/colour modules
-      if: steps.ldraw-cache.outputs.cache-hit != 'true'
-      run: |
-        uv run ldraw download --yes
-        uv run ldraw generate --yes
     - run: uv run ruff format --check .
     - run: uv run ruff check .
     - name: Run type checks
@@ -68,10 +57,10 @@ jobs:
     - name: Run complexity checks
       run: >-
         uv run lizard --languages python --CCN 15 --length 120 --arguments 8
-        src/legolization
+        src/podcast_mcp
     - run: uv run deptry .
     - name: Run tests with coverage
-      run: uv run pytest --run-slow --cov=legolization --cov-report=lcov --cov-report=html
+      run: uv run pytest --cov=podcast_mcp --cov-report=lcov --cov-report=html
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
       with:
